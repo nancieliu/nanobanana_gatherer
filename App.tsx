@@ -70,39 +70,49 @@ const App: React.FC = () => {
         throw new Error('No clear faces detected. Please upload a better screenshot of your group.');
       }
 
-      setLoadingStep('Generating 3 unique memories...');
       const selectedBg = BACKGROUND_OPTIONS.find(bg => bg.id === selectedBackgroundId);
       if (!selectedBg) throw new Error('Background error');
       
       const finalPrompt = `${selectedBg.prompt}. ${userPrompt}`;
       
-      const generationTasks = STYLE_VARIATIONS.map(style => 
-        generateGatheringImageVariation(
+      const results: string[] = [];
+      // We generate sequentially to avoid 429 "Resource Exhausted" errors on Free Tier
+      for (let i = 0; i < STYLE_VARIATIONS.length; i++) {
+        setLoadingStep(`Creating memory ${i + 1} of 3...`);
+        
+        const style = STYLE_VARIATIONS[i];
+        const base64Image = await generateGatheringImageVariation(
           imageData, 
           finalPrompt, 
           style, 
           { model: modelTier, resolution, aspectRatio }
-        )
-      );
+        );
+        
+        setLoadingStep(`Stamping memory ${i + 1}...`);
+        const stamped = await addDateFooter(base64Image, todayStr);
+        results.push(`data:image/jpeg;base64,${stamped}`);
+        
+        // Add a small delay between requests if not the last one to help with rate limiting
+        if (i < STYLE_VARIATIONS.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
 
-      const base64Results = await Promise.all(generationTasks);
-
-      setLoadingStep('Adding memory stamps...');
-      const stampedResults = await Promise.all(
-        base64Results.map(b64 => addDateFooter(b64, todayStr))
-      );
-
-      setGeneratedImages(stampedResults.map(s => `data:image/jpeg;base64,${s}`));
+      setGeneratedImages(results);
     } catch (err: any) {
-      if (err.message === 'API_KEY_MISSING' || err.message?.includes('401') || err.message?.includes('Requested entity was not found')) {
+      console.error("Generation Error:", err);
+      
+      if (err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED')) {
+        setError('Free Tier Limit Reached: Gemini is currently busy or your daily free quota is full. Please wait about 60 seconds and try again, or switch to the PRO model.');
+      } else if (err.message === 'API_KEY_MISSING' || err.message?.includes('401')) {
         if (modelTier === 'gemini-3-pro-image-preview') {
           setShowProSelector(true);
           setError(null);
         } else {
-          setError('API Key is missing. Please ensure you have added the API_KEY environment variable in your Vercel project settings.');
+          setError('API Key is missing or invalid. Please check your Vercel Environment Variables.');
         }
       } else {
-        setError(err.message || 'An error occurred during generation.');
+        setError(err.message || 'An unexpected error occurred. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -118,7 +128,7 @@ const App: React.FC = () => {
             <SparkleIcon className="w-16 h-16 text-yellow-500 mx-auto" />
             <h2 className="text-2xl font-bold">Unlock Gemini Pro</h2>
             <p className="text-gray-400 text-sm">
-              To use high-definition Pro models, you must select a paid API key or configure one in your environment.
+              To use high-definition Pro models and avoid "Busy" limits, you must select a paid API key or configure one in your environment.
             </p>
             <div className="space-y-4">
               <button 
