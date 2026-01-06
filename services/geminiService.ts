@@ -6,10 +6,14 @@ import { ImageData, GenerationConfig } from '../types';
  * Verifies if the image has usable faces
  */
 export async function verifyImageContent(image: ImageData): Promise<boolean> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Use type assertion to satisfy TS during build
+  const apiKey = (process.env as any).API_KEY;
+  if (!apiKey) return true; 
+
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { data: image.base64, mimeType: image.mimeType } },
@@ -19,7 +23,7 @@ export async function verifyImageContent(image: ImageData): Promise<boolean> {
     });
     return response.text?.trim().toUpperCase().includes('YES') || false;
   } catch (e) {
-    return true; // Fallback to true if check fails to avoid blocking user
+    return true; 
   }
 }
 
@@ -29,7 +33,10 @@ export async function generateGatheringImageVariation(
   styleHint: string,
   config: GenerationConfig
 ): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = (process.env as any).API_KEY;
+  if (!apiKey) throw new Error("API Key is missing. Please check your settings.");
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const apiConfig: any = {
     imageConfig: {
@@ -67,11 +74,17 @@ export async function generateGatheringImageVariation(
     config: apiConfig,
   });
 
-  if (!response.candidates?.[0]?.content?.parts) throw new Error('Generation failed');
+  const candidates = response.candidates;
+  if (!candidates || candidates.length === 0) throw new Error('Generation failed: No candidates');
+  
+  const parts = candidates[0].content?.parts;
+  if (!parts) throw new Error('Generation failed: No content in response');
 
-  for (const part of response.candidates[0].content.parts) {
-    if (part.inlineData) return part.inlineData.data;
+  for (const part of parts) {
+    if (part.inlineData?.data) {
+      return part.inlineData.data;
+    }
   }
   
-  throw new Error('No image returned');
+  throw new Error('No image returned from model');
 }
