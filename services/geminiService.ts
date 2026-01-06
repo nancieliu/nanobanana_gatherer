@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { ImageData, GenerationConfig } from '../types';
 
@@ -7,7 +6,9 @@ import { ImageData, GenerationConfig } from '../types';
  */
 export async function verifyImageContent(image: ImageData): Promise<boolean> {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) return true; 
+  
+  // If no key is found at all, or it's the string "undefined", we skip verification to prevent blocking
+  if (!apiKey || apiKey === 'undefined') return true; 
 
   const ai = new GoogleGenAI({ apiKey });
   try {
@@ -22,6 +23,7 @@ export async function verifyImageContent(image: ImageData): Promise<boolean> {
     });
     return response.text?.trim().toUpperCase().includes('YES') || false;
   } catch (e) {
+    console.error("Verification error:", e);
     return true; 
   }
 }
@@ -33,8 +35,13 @@ export async function generateGatheringImageVariation(
   config: GenerationConfig
 ): Promise<string> {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key is missing. Please check your environment settings.");
+  
+  // Robust check for both missing values and build-time 'undefined' strings
+  if (!apiKey || apiKey === 'undefined') {
+    throw new Error("API_KEY_MISSING");
+  }
 
+  // Create a fresh instance right before the call
   const ai = new GoogleGenAI({ apiKey });
   
   const apiConfig: any = {

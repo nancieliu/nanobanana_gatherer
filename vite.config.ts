@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Avoid hardcoding process.env.API_KEY to '' if it's not present at build time,
-    // allowing the runtime environment or platform injection to take precedence.
+    // This allows process.env.API_KEY to be accessible in the browser
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   server: {

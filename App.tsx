@@ -24,7 +24,6 @@ const App: React.FC = () => {
 
   const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Handle Pro key selection
   const handleSelectProKey = async () => {
     // @ts-ignore
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
@@ -32,7 +31,7 @@ const App: React.FC = () => {
       await window.aistudio.openSelectKey();
       setShowProSelector(false);
     } else {
-      setError("AI Studio key selection is only available in the AI Studio environment. Please use Standard mode or configure Vercel env vars.");
+      setError("AI Studio key selection is only available within Google AI Studio. Please ensure the API_KEY environment variable is configured in your project settings.");
     }
   };
 
@@ -45,6 +44,8 @@ const App: React.FC = () => {
         if (!hasKey) {
           setShowProSelector(true);
         }
+      } else if (!process.env.API_KEY) {
+        setShowProSelector(true);
       }
     }
     setModelTier(model);
@@ -93,9 +94,13 @@ const App: React.FC = () => {
 
       setGeneratedImages(stampedResults.map(s => `data:image/jpeg;base64,${s}`));
     } catch (err: any) {
-      if (err.message?.includes('401') || err.message?.includes('API_KEY_INVALID') || err.message?.includes('Requested entity was not found')) {
-        setError('Your API key is missing or invalid. If using Pro, please select a key. If using Standard, ensure the API_KEY environment variable is set in Vercel.');
-        if (modelTier === 'gemini-3-pro-image-preview') setShowProSelector(true);
+      if (err.message === 'API_KEY_MISSING' || err.message?.includes('401') || err.message?.includes('Requested entity was not found')) {
+        if (modelTier === 'gemini-3-pro-image-preview') {
+          setShowProSelector(true);
+          setError(null);
+        } else {
+          setError('API Key is missing. Please ensure you have added the API_KEY environment variable in your Vercel project settings.');
+        }
       } else {
         setError(err.message || 'An error occurred during generation.');
       }
@@ -107,14 +112,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-200 font-sans flex flex-col relative">
-      {/* Pro Key Selector Modal */}
       {showProSelector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6">
           <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
             <SparkleIcon className="w-16 h-16 text-yellow-500 mx-auto" />
             <h2 className="text-2xl font-bold">Unlock Gemini Pro</h2>
             <p className="text-gray-400 text-sm">
-              To generate high-quality 4K images, you must select a paid API key from a billing-enabled project.
+              To use high-definition Pro models, you must select a paid API key or configure one in your environment.
             </p>
             <div className="space-y-4">
               <button 
@@ -129,11 +133,6 @@ const App: React.FC = () => {
               >
                 Back to Standard
               </button>
-            </div>
-            <div className="pt-4 border-t border-gray-800">
-              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-yellow-500 underline uppercase tracking-widest">
-                Billing Documentation
-              </a>
             </div>
           </div>
         </div>
@@ -166,7 +165,6 @@ const App: React.FC = () => {
       
       <main className="flex-grow container mx-auto p-4 md:p-8 max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Controls */}
           <div className="lg:col-span-4 space-y-6">
             <div className="p-6 bg-gray-900/50 rounded-2xl border border-gray-800 space-y-6">
               <div>
@@ -213,7 +211,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Result Gallery */}
           <div className="lg:col-span-8">
             <div className="bg-gray-900/20 rounded-3xl border border-dashed border-gray-800 p-6 min-h-[600px] flex flex-col">
               {error && (
