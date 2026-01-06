@@ -4,10 +4,20 @@ import { verifyImageContent, generateGatheringImageVariation } from './services/
 import { fileToBase64, addDateFooter } from './utils/imageUtils';
 import { BACKGROUND_OPTIONS, STYLE_VARIATIONS, RESOLUTIONS, ASPECT_RATIOS } from './constants';
 import { ImageResolution, AspectRatio, ImageModel } from './types';
-import { SparkleIcon, UploadIcon } from './components/IconComponents';
+import { SparkleIcon } from './components/IconComponents';
 import ImageUploader from './components/ImageUploader';
 import BackgroundSelector from './components/BackgroundSelector';
 import PromptInput from './components/PromptInput';
+
+// Helper to ensure process.env.API_KEY is available globally for the Gemini service
+const setGlobalApiKey = (key: string) => {
+  if (typeof window !== 'undefined') {
+    // @ts-ignore
+    if (!window.process) window.process = { env: {} };
+    // @ts-ignore
+    window.process.env.API_KEY = key;
+  }
+};
 
 const App: React.FC = () => {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
@@ -36,7 +46,12 @@ const App: React.FC = () => {
         setHasKey(selected);
       } else {
         // Public web environment (Vercel)
-        setHasKey(!!localApiKey);
+        if (localApiKey) {
+          setGlobalApiKey(localApiKey);
+          setHasKey(true);
+        } else {
+          setHasKey(false);
+        }
       }
     };
     checkKey();
@@ -45,9 +60,13 @@ const App: React.FC = () => {
   const handleOpenKeySelector = async () => {
     // @ts-ignore
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      // @ts-ignore
-      await window.aistudio.openSelectKey();
-      setHasKey(true);
+      try {
+        // @ts-ignore
+        await window.aistudio.openSelectKey();
+        setHasKey(true);
+      } catch (e) {
+        console.error("Key selection failed", e);
+      }
     } else {
       setShowKeyInput(true);
     }
@@ -56,8 +75,7 @@ const App: React.FC = () => {
   const saveLocalKey = () => {
     if (localApiKey.trim()) {
       localStorage.setItem('GATHERER_API_KEY', localApiKey.trim());
-      // Injected key for the service to use
-      (process.env as any).API_KEY = localApiKey.trim();
+      setGlobalApiKey(localApiKey.trim());
       setHasKey(true);
       setShowKeyInput(false);
     }
@@ -67,11 +85,6 @@ const App: React.FC = () => {
     if (!sourceFile) {
       setError('Please upload a screenshot first.');
       return;
-    }
-
-    // Ensure API Key is available in process.env for the service
-    if (localApiKey && !(process.env as any).API_KEY) {
-      (process.env as any).API_KEY = localApiKey;
     }
 
     setIsLoading(true);
@@ -111,7 +124,7 @@ const App: React.FC = () => {
 
       setGeneratedImages(stampedResults.map(s => `data:image/jpeg;base64,${s}`));
     } catch (err: any) {
-      if (err.message === 'KEY_NOT_FOUND' || err.message?.includes('API_KEY_INVALID')) {
+      if (err.message?.includes('401') || err.message?.includes('API_KEY_INVALID') || err.message?.includes('entity was not found')) {
         setHasKey(false);
         setError('Your API key is missing or invalid. Please check your settings.');
       } else {
@@ -129,27 +142,42 @@ const App: React.FC = () => {
         <div className="max-w-md w-full text-center space-y-8 bg-gray-800/50 p-10 rounded-3xl border border-gray-700 shadow-2xl backdrop-blur-xl">
           <SparkleIcon className="w-16 h-16 text-yellow-400 mx-auto" />
           <h1 className="text-4xl font-bold text-white tracking-tight">Gatherer</h1>
-          <p className="text-gray-400">Turn virtual meetings into beautiful memories. To use this app, you need a free Gemini API key.</p>
+          <p className="text-gray-400">Turn virtual meetings into beautiful memories. To use this app, you need a Gemini API key.</p>
           
           <div className="space-y-4">
-            <input 
-              type="password"
-              placeholder="Enter your Gemini API Key"
-              value={localApiKey}
-              onChange={(e) => setLocalApiKey(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-yellow-500 outline-none transition-all"
-            />
-            <button 
-              onClick={saveLocalKey} 
-              className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold rounded-xl transition-all shadow-lg shadow-yellow-500/20"
-            >
-              Get Started
-            </button>
+            {/* @ts-ignore */}
+            {window.aistudio && typeof window.aistudio.openSelectKey === 'function' ? (
+              <button 
+                onClick={handleOpenKeySelector} 
+                className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold rounded-xl transition-all shadow-lg shadow-yellow-500/20"
+              >
+                Select Paid API Key
+              </button>
+            ) : (
+              <>
+                <input 
+                  type="password"
+                  placeholder="Enter your Gemini API Key"
+                  value={localApiKey}
+                  onChange={(e) => setLocalApiKey(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-yellow-500 outline-none transition-all"
+                />
+                <button 
+                  onClick={saveLocalKey} 
+                  className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold rounded-xl transition-all shadow-lg shadow-yellow-500/20"
+                >
+                  Get Started
+                </button>
+              </>
+            )}
           </div>
 
           <div className="pt-4 space-y-2">
             <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="block text-xs text-yellow-500 hover:text-yellow-400 underline">
               Get a free API Key from Google AI Studio
+            </a>
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-gray-500 hover:text-gray-400 underline uppercase tracking-widest">
+              Learn about billing for Pro models
             </a>
             <p className="text-[10px] text-gray-500 uppercase tracking-widest">Your key is stored only in your browser</p>
           </div>
