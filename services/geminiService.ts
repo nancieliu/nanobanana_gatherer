@@ -6,8 +6,7 @@ import { ImageData, GenerationConfig } from '../types';
  * Verifies if the image has usable faces
  */
 export async function verifyImageContent(image: ImageData): Promise<boolean> {
-  // Use type assertion to satisfy TS during build
-  const apiKey = (process.env as any).API_KEY;
+  const apiKey = process.env.API_KEY;
   if (!apiKey) return true; 
 
   const ai = new GoogleGenAI({ apiKey });
@@ -33,8 +32,8 @@ export async function generateGatheringImageVariation(
   styleHint: string,
   config: GenerationConfig
 ): Promise<string> {
-  const apiKey = (process.env as any).API_KEY;
-  if (!apiKey) throw new Error("API Key is missing. Please check your settings.");
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error("API Key is missing. Please check your environment settings.");
 
   const ai = new GoogleGenAI({ apiKey });
   

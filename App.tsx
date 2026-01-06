@@ -9,21 +9,8 @@ import ImageUploader from './components/ImageUploader';
 import BackgroundSelector from './components/BackgroundSelector';
 import PromptInput from './components/PromptInput';
 
-// Helper to ensure process.env.API_KEY is available globally for the Gemini service
-const setGlobalApiKey = (key: string) => {
-  if (typeof window !== 'undefined') {
-    // @ts-ignore
-    if (!window.process) window.process = { env: {} };
-    // @ts-ignore
-    window.process.env.API_KEY = key;
-  }
-};
-
 const App: React.FC = () => {
-  const [hasKey, setHasKey] = useState<boolean | null>(null);
-  const [localApiKey, setLocalApiKey] = useState<string>(localStorage.getItem('GATHERER_API_KEY') || '');
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  
+  const [showProSelector, setShowProSelector] = useState(false);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string>(BACKGROUND_OPTIONS[0].id);
   const [modelTier, setModelTier] = useState<ImageModel>('gemini-2.5-flash-image');
@@ -37,48 +24,30 @@ const App: React.FC = () => {
 
   const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  useEffect(() => {
-    const checkKey = async () => {
-      // @ts-ignore - Check for AI Studio environment
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        // @ts-ignore
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasKey(selected);
-      } else {
-        // Public web environment (Vercel)
-        if (localApiKey) {
-          setGlobalApiKey(localApiKey);
-          setHasKey(true);
-        } else {
-          setHasKey(false);
-        }
-      }
-    };
-    checkKey();
-  }, [localApiKey]);
-
-  const handleOpenKeySelector = async () => {
+  // Handle Pro key selection
+  const handleSelectProKey = async () => {
     // @ts-ignore
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      try {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
-        setHasKey(true);
-      } catch (e) {
-        console.error("Key selection failed", e);
-      }
+      // @ts-ignore
+      await window.aistudio.openSelectKey();
+      setShowProSelector(false);
     } else {
-      setShowKeyInput(true);
+      setError("AI Studio key selection is only available in the AI Studio environment. Please use Standard mode or configure Vercel env vars.");
     }
   };
 
-  const saveLocalKey = () => {
-    if (localApiKey.trim()) {
-      localStorage.setItem('GATHERER_API_KEY', localApiKey.trim());
-      setGlobalApiKey(localApiKey.trim());
-      setHasKey(true);
-      setShowKeyInput(false);
+  const changeModel = async (model: ImageModel) => {
+    if (model === 'gemini-3-pro-image-preview') {
+      // @ts-ignore
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          setShowProSelector(true);
+        }
+      }
     }
+    setModelTier(model);
   };
 
   const handleGenerate = useCallback(async () => {
@@ -124,9 +93,9 @@ const App: React.FC = () => {
 
       setGeneratedImages(stampedResults.map(s => `data:image/jpeg;base64,${s}`));
     } catch (err: any) {
-      if (err.message?.includes('401') || err.message?.includes('API_KEY_INVALID') || err.message?.includes('entity was not found')) {
-        setHasKey(false);
-        setError('Your API key is missing or invalid. Please check your settings.');
+      if (err.message?.includes('401') || err.message?.includes('API_KEY_INVALID') || err.message?.includes('Requested entity was not found')) {
+        setError('Your API key is missing or invalid. If using Pro, please select a key. If using Standard, ensure the API_KEY environment variable is set in Vercel.');
+        if (modelTier === 'gemini-3-pro-image-preview') setShowProSelector(true);
       } else {
         setError(err.message || 'An error occurred during generation.');
       }
@@ -134,74 +103,64 @@ const App: React.FC = () => {
       setIsLoading(false);
       setLoadingStep('');
     }
-  }, [sourceFile, selectedBackgroundId, userPrompt, modelTier, resolution, aspectRatio, todayStr, localApiKey]);
+  }, [sourceFile, selectedBackgroundId, userPrompt, modelTier, resolution, aspectRatio, todayStr]);
 
-  if (hasKey === false || showKeyInput) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-800 via-gray-900 to-black">
-        <div className="max-w-md w-full text-center space-y-8 bg-gray-800/50 p-10 rounded-3xl border border-gray-700 shadow-2xl backdrop-blur-xl">
-          <SparkleIcon className="w-16 h-16 text-yellow-400 mx-auto" />
-          <h1 className="text-4xl font-bold text-white tracking-tight">Gatherer</h1>
-          <p className="text-gray-400">Turn virtual meetings into beautiful memories. To use this app, you need a Gemini API key.</p>
-          
-          <div className="space-y-4">
-            {/* @ts-ignore */}
-            {window.aistudio && typeof window.aistudio.openSelectKey === 'function' ? (
+  return (
+    <div className="min-h-screen bg-gray-950 text-gray-200 font-sans flex flex-col relative">
+      {/* Pro Key Selector Modal */}
+      {showProSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6">
+          <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+            <SparkleIcon className="w-16 h-16 text-yellow-500 mx-auto" />
+            <h2 className="text-2xl font-bold">Unlock Gemini Pro</h2>
+            <p className="text-gray-400 text-sm">
+              To generate high-quality 4K images, you must select a paid API key from a billing-enabled project.
+            </p>
+            <div className="space-y-4">
               <button 
-                onClick={handleOpenKeySelector} 
-                className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold rounded-xl transition-all shadow-lg shadow-yellow-500/20"
+                onClick={handleSelectProKey}
+                className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-xl transition-all shadow-lg shadow-yellow-500/10"
               >
                 Select Paid API Key
               </button>
-            ) : (
-              <>
-                <input 
-                  type="password"
-                  placeholder="Enter your Gemini API Key"
-                  value={localApiKey}
-                  onChange={(e) => setLocalApiKey(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-yellow-500 outline-none transition-all"
-                />
-                <button 
-                  onClick={saveLocalKey} 
-                  className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-gray-950 font-bold rounded-xl transition-all shadow-lg shadow-yellow-500/20"
-                >
-                  Get Started
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="pt-4 space-y-2">
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="block text-xs text-yellow-500 hover:text-yellow-400 underline">
-              Get a free API Key from Google AI Studio
-            </a>
-            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-gray-500 hover:text-gray-400 underline uppercase tracking-widest">
-              Learn about billing for Pro models
-            </a>
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest">Your key is stored only in your browser</p>
+              <button 
+                onClick={() => { setModelTier('gemini-2.5-flash-image'); setShowProSelector(false); }}
+                className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl transition-all"
+              >
+                Back to Standard
+              </button>
+            </div>
+            <div className="pt-4 border-t border-gray-800">
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-yellow-500 underline uppercase tracking-widest">
+                Billing Documentation
+              </a>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  if (hasKey === null) return null;
-
-  return (
-    <div className="min-h-screen bg-gray-950 text-gray-200 font-sans flex flex-col">
       <header className="bg-gray-900/80 backdrop-blur-md border-b border-gray-800 p-4 sticky top-0 z-20">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-black text-yellow-500 tracking-tighter uppercase">Gatherer</h1>
             <div className="hidden sm:flex gap-2 bg-gray-800 rounded-full p-1 border border-gray-700 scale-90">
-              <button onClick={() => setModelTier('gemini-2.5-flash-image')} className={`px-3 py-1 text-[10px] font-bold rounded-full transition-all ${modelTier === 'gemini-2.5-flash-image' ? 'bg-yellow-500 text-black' : 'text-gray-500'}`}>STANDARD</button>
-              <button onClick={() => setModelTier('gemini-3-pro-image-preview')} className={`px-3 py-1 text-[10px] font-bold rounded-full transition-all ${modelTier === 'gemini-3-pro-image-preview' ? 'bg-yellow-500 text-black' : 'text-gray-500'}`}>PRO</button>
+              <button 
+                onClick={() => changeModel('gemini-2.5-flash-image')} 
+                className={`px-3 py-1 text-[10px] font-bold rounded-full transition-all ${modelTier === 'gemini-2.5-flash-image' ? 'bg-yellow-500 text-black' : 'text-gray-500'}`}
+              >
+                STANDARD
+              </button>
+              <button 
+                onClick={() => changeModel('gemini-3-pro-image-preview')} 
+                className={`px-3 py-1 text-[10px] font-bold rounded-full transition-all ${modelTier === 'gemini-3-pro-image-preview' ? 'bg-yellow-500 text-black' : 'text-gray-500'}`}
+              >
+                PRO
+              </button>
             </div>
           </div>
-          <button onClick={() => setShowKeyInput(true)} className="text-[10px] font-bold text-gray-500 hover:text-white uppercase tracking-widest px-3 py-1 border border-gray-800 rounded-lg transition-all">
-            Settings
-          </button>
+          <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-3 py-1 border border-gray-800 rounded-lg">
+            {modelTier === 'gemini-3-pro-image-preview' ? 'Pro High-Def' : 'Standard Memory'}
+          </div>
         </div>
       </header>
       
