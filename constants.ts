@@ -1,5 +1,5 @@
 
-import { BackgroundOption, ImageResolution, AspectRatio } from './types';
+import { BackgroundOption, ToneOption, ImageResolution, AspectRatio } from './types';
 
 export const BACKGROUND_OPTIONS: BackgroundOption[] = [
   {
@@ -17,8 +17,8 @@ export const BACKGROUND_OPTIONS: BackgroundOption[] = [
   {
     id: 'campus-lawn',
     name: 'School Campus',
-    prompt: 'a prestigious university campus lawn with historic brick buildings in the background and students nearby',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1523050853064-80216b39922d?auto=format&fit=crop&w=200&q=80',
+    prompt: 'a historic university campus quad with majestic stone architecture and ancient trees in the background',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=200&q=80',
   },
   {
     id: 'dinner-party',
@@ -38,6 +38,14 @@ export const BACKGROUND_OPTIONS: BackgroundOption[] = [
     prompt: 'a stylish industrial loft with large windows, brick walls, and comfortable lounge seating',
     thumbnailUrl: 'https://images.unsplash.com/photo-1560448204-61dc36dc98c8?auto=format&fit=crop&w=200&q=80',
   },
+];
+
+export const TONE_OPTIONS: ToneOption[] = [
+  { id: 'natural', name: 'Natural', prompt: 'candid, authentic, and warm lifestyle photography' },
+  { id: 'formal', name: 'Formal', prompt: 'strictly professional corporate setting, polished suits, sophisticated and serious corporate portrait style' },
+  { id: 'naughty', name: 'Naughty', prompt: 'mischievous energy, cheeky expressions, playful chaos, fun and slightly rebellious party atmosphere' },
+  { id: 'cinematic', name: 'Cinematic', prompt: 'moody dramatic lighting, shallow depth of field, high-end film look' },
+  { id: 'retro', name: 'Retro', prompt: 'vintage 90s polaroid aesthetic, grainy texture, warm nostalgic tones' },
 ];
 
 export const STYLE_VARIATIONS = [

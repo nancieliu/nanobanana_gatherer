@@ -34,14 +34,18 @@ export async function generateGatheringImageVariation(
   }
 
   const systemPrompt = `
-    Transform this video call/conference grid into a high-quality group photograph.
-    SCENE SETTING: ${prompt}
-    ARTISTIC STYLE: ${styleHint}
+    INSTRUCTIONS:
+    Transform this video conference grid into a unified, high-quality group scene.
     
-    CRITICAL:
-    - Identify every person in the source grid.
-    - Blend them naturally into the ${prompt}.
-    - Ensure faces are sharp and recognizable.
+    SETTING: ${prompt}
+    MOOD/VIBE: ${styleHint}
+    
+    CORE REQUIREMENTS:
+    1. Identify all individuals from the input image grid.
+    2. Place them naturally within the new environment (${prompt}).
+    3. ADHERE STRICTLY TO THE VIBE: ${styleHint}.
+    4. Maintain the identity and recognizable features of each person.
+    5. The resulting image should look like a single coherent photo, not a collage.
   `;
 
   try {
@@ -73,9 +77,7 @@ export async function generateGatheringImageVariation(
   } catch (err: any) {
     const errString = typeof err === 'string' ? err : JSON.stringify(err);
     
-    // 429: Rate Limit, Resource Exhausted, or Quota=0
     if (errString.includes('429') || errString.includes('RESOURCE_EXHAUSTED') || errString.includes('limit":0')) {
-       // Limit 0 is a permanent state until Billing is linked
        if (errString.includes('limit":0')) {
          const quotaErr = new Error("BILLING_REQUIRED");
          // @ts-ignore
@@ -83,7 +85,6 @@ export async function generateGatheringImageVariation(
          throw quotaErr;
        }
 
-       // Exponential backoff for transient rate limits
        if (retryCount < 2) {
           const waitTime = Math.pow(2, retryCount) * 2000;
           await new Promise(resolve => setTimeout(resolve, waitTime));

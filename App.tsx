@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { generateGatheringImageVariation } from './services/geminiService';
 import { fileToBase64, addDateFooter } from './utils/imageUtils';
-import { BACKGROUND_OPTIONS, STYLE_VARIATIONS, RESOLUTIONS, ASPECT_RATIOS } from './constants';
+import { BACKGROUND_OPTIONS, TONE_OPTIONS, STYLE_VARIATIONS } from './constants';
 import { ImageResolution, AspectRatio, ImageModel } from './types';
 import { SparkleIcon } from './components/IconComponents';
 import ImageUploader from './components/ImageUploader';
@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [showTroubleshooter, setShowTroubleshooter] = useState(false);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string>(BACKGROUND_OPTIONS[0].id);
+  const [selectedToneId, setSelectedToneId] = useState<string>(TONE_OPTIONS[0].id);
   const [modelTier, setModelTier] = useState<ImageModel>('gemini-2.5-flash-image');
   const [resolution, setResolution] = useState<ImageResolution>('1K');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
@@ -24,7 +25,6 @@ const App: React.FC = () => {
 
   const todayStr = useMemo(() => new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), []);
 
-  // Use a safer check for process.env
   const hasEnvKey = useMemo(() => {
     try {
       return !!(process.env.API_KEY && process.env.API_KEY !== 'undefined' && process.env.API_KEY !== '');
@@ -43,19 +43,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleSelectUserKey = async () => {
-    // @ts-ignore
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      try {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
-        setModelTier('gemini-3-pro-image-preview');
-        setError(null);
-        setShowTroubleshooter(false);
-      } catch (e) { console.error(e); }
-    }
-  };
-
   const handleGenerate = useCallback(async () => {
     if (!sourceFile) {
       setError({ message: 'Please upload a source image first.' });
@@ -68,14 +55,15 @@ const App: React.FC = () => {
       setLoadingStep('Pre-processing Image...');
       const imageData = await fileToBase64(sourceFile);
       const selectedBg = BACKGROUND_OPTIONS.find(bg => bg.id === selectedBackgroundId);
-      const finalPrompt = `${selectedBg?.prompt || ''}. ${userPrompt}`;
+      const selectedTone = TONE_OPTIONS.find(t => t.id === selectedToneId);
+      const finalPrompt = `${selectedBg?.prompt || ''}. Tone/Mood: ${selectedTone?.prompt || ''}. ${userPrompt}`;
       
       setLoadingStep(`Running ${modelTier === 'gemini-3-pro-image-preview' ? 'Pro' : 'Flash'} Engine...`);
       const base64Image = await generateGatheringImageVariation(
         imageData, 
         finalPrompt, 
-        STYLE_VARIATIONS[0], 
-        { model: modelTier, resolution, aspectRatio }
+        selectedTone?.prompt || STYLE_VARIATIONS[0], 
+        { model: modelTier, resolution, aspectRatio, tone: selectedToneId }
       );
       
       setLoadingStep(`Finalizing Metadata...`);
@@ -95,7 +83,7 @@ const App: React.FC = () => {
       setIsLoading(false);
       setLoadingStep('');
     }
-  }, [sourceFile, selectedBackgroundId, userPrompt, modelTier, resolution, aspectRatio, todayStr]);
+  }, [sourceFile, selectedBackgroundId, selectedToneId, userPrompt, modelTier, resolution, aspectRatio, todayStr]);
 
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 flex flex-col antialiased">
@@ -174,14 +162,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            <div className="mt-10 p-8 bg-blue-500/5 rounded-[2.5rem] border border-blue-500/10 flex flex-col md:flex-row items-center justify-between gap-6">
-               <div className="space-y-2">
-                 <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Verify Project Visibility</p>
-                 <p className="text-[11px] text-gray-500 font-medium">If your project isn't showing in AI Studio, you might need to Enable the Generative AI API manually in the GCP Console.</p>
-               </div>
-               <a href="https://console.cloud.google.com/apis/library/generativeai.googleapis.com" target="_blank" rel="noreferrer" className="shrink-0 px-8 py-4 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-blue-500/10 transition-all">Enable API Library</a>
-            </div>
           </div>
         </div>
       )}
@@ -190,17 +170,41 @@ const App: React.FC = () => {
         <aside className="lg:col-span-4 space-y-8">
           <div className="bg-[#0a0a0a] rounded-[2.5rem] p-8 border border-white/5 shadow-2xl space-y-8 sticky top-24">
             <section>
-              <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">1. Screenshot</label>
+              <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">1. Source Memory</label>
               <ImageUploader onFileSelect={setSourceFile} />
             </section>
-            <section>
-              <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">2. Atmosphere</label>
-              <BackgroundSelector options={BACKGROUND_OPTIONS} selectedId={selectedBackgroundId} onSelect={setSelectedBackgroundId} />
+            
+            <section className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">2. Atmosphere</label>
+                <BackgroundSelector options={BACKGROUND_OPTIONS} selectedId={selectedBackgroundId} onSelect={setSelectedBackgroundId} />
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">3. Mode / Tone</label>
+                <div className="flex flex-wrap gap-2">
+                  {TONE_OPTIONS.map((tone) => (
+                    <button
+                      key={tone.id}
+                      onClick={() => setSelectedToneId(tone.id)}
+                      className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${
+                        selectedToneId === tone.id 
+                          ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' 
+                          : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'
+                      }`}
+                    >
+                      {tone.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </section>
+
             <section>
-              <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">3. Prompt</label>
+              <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">4. Custom Prompt</label>
               <PromptInput value={userPrompt} onChange={setUserPrompt} />
             </section>
+
             <button
               onClick={handleGenerate}
               disabled={isLoading || !sourceFile}
@@ -212,7 +216,7 @@ const App: React.FC = () => {
                    <span className="tracking-widest text-[10px] uppercase">{loadingStep}</span>
                 </div>
               ) : (
-                <span className="tracking-widest text-[10px] uppercase font-bold">GENERATE MEMORY</span>
+                <span className="tracking-widest text-[10px] uppercase font-bold">RECONSTRUCT MEMORY</span>
               )}
             </button>
             <div className="flex bg-gray-900/50 rounded-xl p-1 border border-white/5">
@@ -243,7 +247,7 @@ const App: React.FC = () => {
             {!isLoading && (generatedImages.length === 0) && !error && (
               <div className="flex-grow flex flex-col items-center justify-center text-gray-900 opacity-20">
                 <SparkleIcon className="w-40 h-40 mb-10" />
-                <p className="text-center font-black text-xs uppercase tracking-[0.8em]">Input Required</p>
+                <p className="text-center font-black text-xs uppercase tracking-[0.8em]">Awaiting Input</p>
               </div>
             )}
 
@@ -279,7 +283,7 @@ const App: React.FC = () => {
       
       <footer className="p-10 border-t border-white/5 bg-black/90">
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="text-[10px] text-gray-700 font-black uppercase tracking-[0.4em] font-mono">{todayStr} • SYSTEM v1.7</div>
+          <div className="text-[10px] text-gray-700 font-black uppercase tracking-[0.4em] font-mono">{todayStr} • SYSTEM v1.9</div>
           <div className="flex gap-12 text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">
             <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="hover:text-yellow-500 transition-colors">Billing Policy Guide</a>
             <span className="text-yellow-500/20 uppercase select-none">Free Tier Optimized</span>

@@ -6,6 +6,12 @@ export interface BackgroundOption {
   thumbnailUrl: string;
 }
 
+export interface ToneOption {
+  id: string;
+  name: string;
+  prompt: string;
+}
+
 export interface ImageData {
   base64: string;
   mimeType: string;
@@ -19,4 +25,5 @@ export interface GenerationConfig {
   model: ImageModel;
   resolution: ImageResolution;
   aspectRatio: AspectRatio;
+  tone: string;
 }
