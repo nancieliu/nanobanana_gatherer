@@ -155,7 +155,7 @@ const App: React.FC = () => {
                       Once billing is active, copy that key and update your Vercel Environment Variables:
                     </p>
                     <ul className="text-[11px] text-gray-500 space-y-2 list-disc pl-4">
-                      <li>Go to Vercel > Settings > Env Variables</li>
+                      <li>Go to Vercel &gt; Settings &gt; Env Variables</li>
                       <li>Edit <code className="text-white">API_KEY</code></li>
                       <li><strong>Important:</strong> Trigger a New Deployment for the change to take effect.</li>
                     </ul>
@@ -230,7 +230,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {!isLoading && generatedImages.length === 0 && !error && (
+            {!isLoading && (generatedImages.length === 0) && !error && (
               <div className="flex-grow flex flex-col items-center justify-center text-gray-900 opacity-20">
                 <SparkleIcon className="w-40 h-40 mb-10" />
                 <p className="text-center font-black text-xs uppercase tracking-[0.8em]">Input Required</p>
@@ -251,10 +251,10 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {generatedImages.length > 0 && (
+            {(generatedImages.length > 0) && (
               <div className="space-y-12 animate-in fade-in slide-in-from-bottom-12 duration-1000">
                 {generatedImages.map((src, i) => (
-                  <div key={i} className={`group relative bg-black rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl transition-all duration-500 hover:scale-[1.01] ${i === 0 ? 'ring-2 ring-yellow-500/20' : ''}`}>
+                  <div key={i} className={`group relative bg-black rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl transition-all duration-500 hover:scale-[1.01] ${(i === 0) ? 'ring-2 ring-yellow-500/20' : ''}`}>
                     <img src={src} alt="Memory" className="w-full h-auto" />
                     <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-700 flex flex-col items-center justify-center gap-6">
                        <a href={src} download={`memory-${i}.jpg`} className="px-12 py-5 bg-yellow-500 text-black font-black rounded-2xl text-[10px] tracking-[0.2em] uppercase hover:bg-yellow-400 active:scale-95 transition-all shadow-3xl shadow-yellow-500/30">Download Artifact</a>
