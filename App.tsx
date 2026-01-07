@@ -24,18 +24,28 @@ const App: React.FC = () => {
 
   const todayStr = useMemo(() => new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), []);
 
-  // @ts-ignore
-  const isInAiStudio = !!(window.aistudio && typeof window.aistudio.openSelectKey === 'function');
-  const hasEnvKey = !!(process.env.API_KEY && process.env.API_KEY !== 'undefined' && process.env.API_KEY !== '');
+  // Use a safer check for process.env
+  const hasEnvKey = useMemo(() => {
+    try {
+      return !!(process.env.API_KEY && process.env.API_KEY !== 'undefined' && process.env.API_KEY !== '');
+    } catch (e) {
+      return false;
+    }
+  }, []);
 
   const keyDisplay = useMemo(() => {
-    const key = process.env.API_KEY || '';
-    if (!key || key === 'undefined' || key === '') return 'MISSING';
-    return `...${key.slice(-4)}`;
-  }, [isLoading, modelTier, error]);
+    try {
+      const key = process.env.API_KEY || '';
+      if (!key || key === 'undefined' || key === '') return 'MISSING';
+      return `...${key.slice(-4)}`;
+    } catch (e) {
+      return 'UNAVAILABLE';
+    }
+  }, []);
 
   const handleSelectUserKey = async () => {
-    if (isInAiStudio) {
+    // @ts-ignore
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       try {
         // @ts-ignore
         await window.aistudio.openSelectKey();
@@ -154,8 +164,8 @@ const App: React.FC = () => {
                     <p className="text-[11px] text-gray-400 font-bold leading-relaxed">
                       Once billing is active, copy that key and update your Vercel Environment Variables:
                     </p>
-                    <ul className="text-[11px] text-gray-500 space-y-2 list-disc pl-4">
-                      <li>Go to Vercel &gt; Settings &gt; Env Variables</li>
+                    <ul className="text-[11px] text-gray-500 space-y-2 list-disc pl-4 font-mono">
+                      <li>{'Vercel > Settings > Env Variables'}</li>
                       <li>Edit <code className="text-white">API_KEY</code></li>
                       <li><strong>Important:</strong> Trigger a New Deployment for the change to take effect.</li>
                     </ul>
@@ -214,7 +224,7 @@ const App: React.FC = () => {
 
         <section className="lg:col-span-8">
           <div className="bg-[#030303] rounded-[3rem] border border-white/5 p-8 min-h-[700px] flex flex-col relative shadow-inner overflow-hidden">
-            {error && (
+            {(error) ? (
               <div className="bg-red-500/5 border border-red-500/20 p-8 rounded-[2rem] mb-10 animate-in slide-in-from-top-10 duration-500">
                 <div className="flex items-start gap-6">
                   <div className="bg-red-500/10 p-4 rounded-2xl shrink-0 text-xl">⚠️</div>
@@ -228,7 +238,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {!isLoading && (generatedImages.length === 0) && !error && (
               <div className="flex-grow flex flex-col items-center justify-center text-gray-900 opacity-20">
@@ -269,7 +279,7 @@ const App: React.FC = () => {
       
       <footer className="p-10 border-t border-white/5 bg-black/90">
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="text-[10px] text-gray-700 font-black uppercase tracking-[0.4em] font-mono">{todayStr} • SYSTEM v1.6</div>
+          <div className="text-[10px] text-gray-700 font-black uppercase tracking-[0.4em] font-mono">{todayStr} • SYSTEM v1.7</div>
           <div className="flex gap-12 text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">
             <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="hover:text-yellow-500 transition-colors">Billing Policy Guide</a>
             <span className="text-yellow-500/20 uppercase select-none">Free Tier Optimized</span>

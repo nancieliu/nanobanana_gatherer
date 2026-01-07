@@ -5,9 +5,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // We use a dynamic reference so that Vercel or AI Studio can provide the key at runtime
-    // rather than baking in a potentially empty build-time variable.
-    'process.env.API_KEY': 'process.env.API_KEY',
+    // We use JSON.stringify to ensure the value is treated as a string literal in the code
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   server: {

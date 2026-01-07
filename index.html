@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -6,7 +7,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nano Banana Image Gatherer</title>
     <script src="https://cdn.tailwindcss.com"></script>
-  <script type="importmap">
+    <script>
+      // Safety shim for process.env in the browser
+      window.process = { env: { NODE_ENV: 'production' } };
+    </script>
+<script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
@@ -19,7 +24,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-900 text-white">
+  <body class="bg-gray-900 text-white font-sans">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
