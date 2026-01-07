@@ -5,9 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // This allows process.env.API_KEY to be evaluated at runtime in the browser
-    // rather than being replaced by a static string during the build process.
-    'process.env': 'process.env',
+    // This tells Vite to leave 'process.env.API_KEY' as a literal code reference
+    // so the environment (AI Studio or Vercel) can inject it at runtime.
+    'process.env.API_KEY': 'process.env.API_KEY',
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   server: {
     port: 3000,
