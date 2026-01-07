@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo } from 'react';
 import { generateGatheringImageVariation } from './services/geminiService';
 import { fileToBase64, addDateFooter } from './utils/imageUtils';
@@ -24,40 +25,55 @@ const App: React.FC = () => {
 
   const todayStr = useMemo(() => new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), []);
 
-  // Helpful for the user to verify if Vercel actually updated the key
+  // Helper to safely get the API key suffix for display
   const keySuffix = useMemo(() => {
-    const key = process.env.API_KEY || '';
-    return key.length > 4 ? `...${key.slice(-4)}` : 'MISSING';
-  }, []);
+    try {
+      // @ts-ignore
+      const key = process.env.API_KEY || '';
+      return key.length > 4 ? `...${key.slice(-4)}` : 'NOT FOUND';
+    } catch (e) {
+      return 'UNAVAILABLE';
+    }
+  }, [isLoading, modelTier, error]);
 
   const handleSelectProKey = async () => {
     // @ts-ignore
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      // @ts-ignore
-      await window.aistudio.openSelectKey();
-      setShowProSelector(false);
-      setModelTier('gemini-3-pro-image-preview');
+    const aiStudio = window.aistudio;
+    if (aiStudio && typeof aiStudio.openSelectKey === 'function') {
+      try {
+        console.log("Gatherer.AI: Opening API Key Selection Dialog...");
+        await aiStudio.openSelectKey();
+        
+        // Per guidelines, we assume selection was successful and proceed immediately
+        setShowProSelector(false);
+        setModelTier('gemini-3-pro-image-preview');
+        setError(null);
+        console.log("Gatherer.AI: Switched to Pro mode.");
+      } catch (err: any) {
+        console.error("Gatherer.AI: Dialog Error:", err);
+        setError({ message: "The key selection dialog could not be opened. Ensure you are in a supported environment (Google AI Studio)." });
+      }
     } else {
-      setError({ message: "Key selection is only available inside the AI Studio environment." });
+      console.warn("Gatherer.AI: window.aistudio.openSelectKey is not available.");
+      setError({ message: "Key selection is only available inside the Google AI Studio environment. Please check your billing manually in Google Cloud Console." });
     }
   };
 
   const changeModel = async (model: ImageModel) => {
     if (model === 'gemini-3-pro-image-preview') {
       // @ts-ignore
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        // @ts-ignore
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          setShowProSelector(true);
-          return;
-        }
-      } else {
+      const aiStudio = window.aistudio;
+      const hasSelected = aiStudio && typeof aiStudio.hasSelectedApiKey === 'function' 
+        ? await aiStudio.hasSelectedApiKey() 
+        : false;
+      
+      if (!hasSelected) {
         setShowProSelector(true);
         return;
       }
     }
     setModelTier(model);
+    setError(null);
   };
 
   const handleGenerate = useCallback(async () => {
@@ -70,14 +86,14 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      setLoadingStep('Processing image...');
+      setLoadingStep('Capturing data...');
       const imageData = await fileToBase64(sourceFile);
       
       const selectedBg = BACKGROUND_OPTIONS.find(bg => bg.id === selectedBackgroundId);
+      const style = STYLE_VARIATIONS[generatedImages.length % STYLE_VARIATIONS.length];
       const finalPrompt = `${selectedBg?.prompt || ''}. ${userPrompt}`;
       
-      setLoadingStep(`Requesting pixels from ${modelTier.split('-')[1]}...`);
-      const style = STYLE_VARIATIONS[generatedImages.length % STYLE_VARIATIONS.length];
+      setLoadingStep(`Contacting ${modelTier === 'gemini-3-pro-image-preview' ? 'Pro' : 'Flash'}...`);
       
       const base64Image = await generateGatheringImageVariation(
         imageData, 
@@ -86,21 +102,21 @@ const App: React.FC = () => {
         { model: modelTier, resolution, aspectRatio }
       );
       
-      setLoadingStep(`Applying final touches...`);
+      setLoadingStep(`Saving memory...`);
       const stamped = await addDateFooter(base64Image, todayStr);
       setGeneratedImages(prev => [`data:image/jpeg;base64,${stamped}`, ...prev]);
 
     } catch (err: any) {
-      console.error("API Error Trace:", err);
+      console.error("Gatherer.AI: Generation Failed", err);
       const errStr = typeof err === 'string' ? err : (err.message || JSON.stringify(err));
       
       let msg = err.message || "An unexpected error occurred.";
       let isQuota = false;
 
-      // Improved detection of quota issues
-      if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('limit":0') || errStr.includes('Quota')) {
+      // Handle standard 429 / 0 Limit errors
+      if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('limit":0') || errStr.includes('quota')) {
         isQuota = true;
-        msg = "The API returned a Quota Error. This means image generation is currently disabled or limited for this API project.";
+        msg = "QUOTA ERROR: Your current project project has zero generation quota. Please enable billing or switch projects.";
       }
 
       setError({ message: msg, isQuota, raw: errStr });
@@ -111,18 +127,28 @@ const App: React.FC = () => {
   }, [sourceFile, selectedBackgroundId, userPrompt, modelTier, resolution, aspectRatio, todayStr, generatedImages.length]);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-200 flex flex-col antialiased font-sans">
+    <div className="min-h-screen bg-[#050505] text-gray-200 flex flex-col antialiased">
       {showProSelector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl p-6">
           <div className="max-w-md w-full bg-[#0a0a0a] border border-gray-800 rounded-[2.5rem] p-10 text-center space-y-8 shadow-2xl border-t-yellow-500/30">
             <div className="w-20 h-20 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto ring-1 ring-yellow-500/20">
               <SparkleIcon className="w-10 h-10 text-yellow-500" />
             </div>
-            <div className="space-y-2">
-              <h2 className="text-3xl font-black text-white">Advanced Quota</h2>
+            <div className="space-y-3">
+              <h2 className="text-3xl font-black text-white">Project Setup</h2>
               <p className="text-gray-400 text-sm leading-relaxed">
-                Image generation is restricted on standard free projects. To proceed, you need to select an API key from a project with billing enabled.
+                Image generation models require a project with <strong>Billing Enabled</strong>. Select a key from a paid project to bypass the current limit.
               </p>
+              <div className="pt-2">
+                <a 
+                  href="https://ai.google.dev/gemini-api/docs/billing" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 text-yellow-500 text-[10px] font-black uppercase tracking-widest hover:underline"
+                >
+                  Billing Setup Guide ↗
+                </a>
+              </div>
             </div>
             <div className="space-y-4 pt-4">
               <button 
@@ -135,7 +161,7 @@ const App: React.FC = () => {
                 onClick={() => { setShowProSelector(false); setModelTier('gemini-2.5-flash-image'); }} 
                 className="w-full py-3 text-gray-500 hover:text-white font-bold transition-all text-xs tracking-widest"
               >
-                STAY ON BASIC TIER
+                STAY ON BASIC
               </button>
             </div>
           </div>
@@ -152,7 +178,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden md:block text-[9px] font-black text-gray-600 uppercase tracking-widest">
-              API Key: <span className="text-gray-400">{keySuffix}</span>
+              Project Key: <span className="text-gray-400 font-mono">{keySuffix}</span>
             </div>
             <div className="flex bg-gray-900/80 rounded-2xl p-1 border border-gray-800">
               <button 
@@ -186,7 +212,7 @@ const App: React.FC = () => {
             </section>
 
             <section>
-              <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">3. Adjustments</label>
+              <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.3em] mb-4 block">3. Personalize</label>
               <PromptInput value={userPrompt} onChange={setUserPrompt} />
             </section>
 
@@ -198,7 +224,7 @@ const App: React.FC = () => {
                   </select>
                </div>
                <div className={`bg-gray-950 rounded-2xl p-4 border border-gray-900 transition-opacity ${modelTier === 'gemini-2.5-flash-image' ? 'opacity-20 pointer-events-none' : ''}`}>
-                  <span className="text-[9px] font-black text-gray-700 block mb-2 tracking-widest">QUALITY</span>
+                  <span className="text-[9px] font-black text-gray-700 block mb-2 tracking-widest">RESOLUTION</span>
                   <select disabled={modelTier === 'gemini-2.5-flash-image'} value={resolution} onChange={(e) => setResolution(e.target.value as ImageResolution)} className="bg-transparent w-full text-sm font-black outline-none cursor-pointer text-white">
                     {RESOLUTIONS.map(r => <option key={r} value={r} className="bg-gray-900">{r}</option>)}
                   </select>
@@ -223,29 +249,38 @@ const App: React.FC = () => {
         </aside>
 
         <section className="lg:col-span-8">
-          <div className="bg-[#030303] rounded-[3rem] border border-gray-900/50 p-8 min-h-[650px] flex flex-col relative shadow-inner">
+          <div className="bg-[#030303] rounded-[3rem] border border-gray-900/50 p-8 min-h-[650px] flex flex-col relative shadow-inner overflow-hidden">
             {error && (
               <div className="bg-red-500/5 border border-red-500/20 p-8 rounded-[2rem] mb-10 animate-in slide-in-from-top-10 duration-500">
                 <div className="flex items-start gap-5">
                   <div className="bg-red-500/10 p-3 rounded-2xl shrink-0">🚨</div>
                   <div className="space-y-4 w-full">
-                    <h3 className="text-red-500 font-black uppercase text-xs tracking-[0.2em]">API Restriction Detected</h3>
+                    <h3 className="text-red-500 font-black uppercase text-xs tracking-[0.2em]">Project Quota Required</h3>
                     <p className="text-red-200/60 text-sm leading-relaxed font-medium">{error.message}</p>
                     
                     {error.isQuota && (
-                      <div className="bg-red-500/5 border border-red-500/10 p-6 rounded-2xl space-y-5">
-                        <p className="text-[11px] text-red-200/40 font-bold uppercase tracking-widest">How to resolve:</p>
-                        <ul className="text-[11px] text-red-200/80 space-y-3 list-none font-medium">
-                          <li className="flex gap-2"><span>1.</span> <span>Confirm your active key ends in <strong className="text-white">{keySuffix}</strong>. If not, Vercel hasn't updated yet.</span></li>
-                          <li className="flex gap-2"><span>2.</span> <span>Ensure you created a <strong className="text-white">New Project</strong> in AI Studio, not just a new key in the old project.</span></li>
-                          <li className="flex gap-2"><span>3.</span> <span>Wait 5-10 minutes. Sometimes "New Projects" take a few minutes to activate image quotas.</span></li>
+                      <div className="bg-red-500/5 border border-red-500/10 p-6 rounded-2xl space-y-6">
+                        <p className="text-[11px] text-red-200/40 font-bold uppercase tracking-widest">Suggested Steps:</p>
+                        <ul className="text-[11px] text-red-200/80 space-y-4 list-none font-medium">
+                          <li className="flex gap-4 items-center">
+                            <span className="bg-yellow-500 text-black w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0">1</span> 
+                            <span>Click <strong>"PRO"</strong> in the top right and select a key from a Paid GCP project.</span>
+                          </li>
+                          <li className="flex gap-4 items-center">
+                            <span className="bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0">2</span> 
+                            <span>Ensure your current project <strong>(Ending in {keySuffix.slice(-4)})</strong> has billing enabled.</span>
+                          </li>
                         </ul>
+                        <div className="pt-2 flex flex-col gap-3">
+                           <button onClick={handleSelectProKey} className="w-full py-3 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 transition-all">Open Key Selector Dialog</button>
+                           <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-center text-[9px] text-gray-500 font-bold uppercase hover:text-white transition-colors">How to enable Billing ↗</a>
+                        </div>
                       </div>
                     )}
                     
                     <div className="flex items-center gap-4">
                       <button onClick={() => setError(null)} className="px-6 py-2 bg-gray-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-colors">Dismiss</button>
-                      <button onClick={() => setShowDebug(!showDebug)} className="text-[9px] text-gray-600 font-bold uppercase underline">Show technical log</button>
+                      <button onClick={() => setShowDebug(!showDebug)} className="text-[9px] text-gray-600 font-bold uppercase underline">Show Error Log</button>
                     </div>
 
                     {showDebug && (
@@ -261,7 +296,7 @@ const App: React.FC = () => {
             {!isLoading && generatedImages.length === 0 && !error && (
               <div className="flex-grow flex flex-col items-center justify-center text-gray-900">
                 <SparkleIcon className="w-32 h-32 mb-8 opacity-[0.05]" />
-                <p className="text-center font-black text-xs uppercase tracking-[0.5em] opacity-20">Waiting for Capture</p>
+                <p className="text-center font-black text-xs uppercase tracking-[0.5em] opacity-20">Awaiting Capture</p>
               </div>
             )}
 
@@ -275,7 +310,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="text-center space-y-2">
                   <p className="text-yellow-500 font-black text-xs uppercase tracking-[0.4em]">{loadingStep}</p>
-                  <p className="text-gray-700 text-[9px] font-black uppercase tracking-widest">Active Key: {keySuffix}</p>
+                  <p className="text-gray-700 text-[9px] font-black uppercase tracking-widest font-mono">Current Key: {keySuffix}</p>
                 </div>
               </div>
             )}
@@ -284,7 +319,7 @@ const App: React.FC = () => {
               <div className="space-y-12 animate-in fade-in slide-in-from-bottom-12 duration-1000">
                 {generatedImages.map((src, i) => (
                   <div key={i} className={`group relative bg-black rounded-[2.5rem] overflow-hidden border border-gray-900 shadow-2xl transition-all hover:scale-[1.01] ${i === 0 ? 'ring-1 ring-yellow-500/30' : ''}`}>
-                    <img src={src} alt="Memory" className="w-full h-auto" />
+                    <img src={src} alt="Generated Memory" className="w-full h-auto" />
                     <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6">
                        <a 
                          href={src} 
@@ -305,11 +340,11 @@ const App: React.FC = () => {
       <footer className="p-10 border-t border-gray-900 bg-black/80">
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-[10px] text-gray-700 font-black uppercase tracking-[0.3em]">
-            {todayStr} • Gatherer Engine v0.6
+            {todayStr} • Gatherer AI Engine v0.8
           </div>
           <div className="flex gap-8 text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">
-            <span className="hover:text-gray-400 cursor-pointer transition-colors">Documentation</span>
-            <span className="text-yellow-500/30">Stable Diffusion Alternative</span>
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="hover:text-gray-400 transition-colors">Billing Documentation</a>
+            <span className="text-yellow-500/20 tracking-tighter">Gemini Flash-Image Native</span>
           </div>
         </div>
       </footer>
