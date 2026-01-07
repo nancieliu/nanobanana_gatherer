@@ -1,7 +1,12 @@
-
 import { BackgroundOption, ToneOption, ImageResolution, AspectRatio } from './types';
 
 export const BACKGROUND_OPTIONS: BackgroundOption[] = [
+  {
+    id: 'corporate-office',
+    name: 'Corporate HQ',
+    prompt: 'a sophisticated modern corporate office with glass walls, designer furniture, and a professional workspace atmosphere',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=200&q=80',
+  },
   {
     id: 'cozy-cafe',
     name: 'Morning Cafe',
@@ -13,12 +18,6 @@ export const BACKGROUND_OPTIONS: BackgroundOption[] = [
     name: 'Park Picnic',
     prompt: 'a lush green city park on a sunny day, people sitting on a checkered blanket with a picnic basket',
     thumbnailUrl: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=200&q=80',
-  },
-  {
-    id: 'campus-lawn',
-    name: 'School Campus',
-    prompt: 'a historic university campus quad with majestic stone architecture and ancient trees in the background',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=200&q=80',
   },
   {
     id: 'dinner-party',
