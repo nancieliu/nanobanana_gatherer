@@ -1,5 +1,5 @@
 {
-  "name": "Nano Banana Image Gatherer",
-  "description": "Upload a screenshot of people from a video conference, choose a new background, and add a text prompt to generate a new, creative image of them together using the Gemini 2.5 Flash Image model.",
+  "name": "Gatherer.AI • Official",
+  "description": "Reconstruct professional memories. Upload video conference screenshots and transform them into unified, high-quality corporate or social group photos using Gemini 3 Pro Vision.",
   "requestFramePermissions": []
 }
