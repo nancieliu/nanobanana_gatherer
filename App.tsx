@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { generateGatheringImageVariation } from './services/geminiService';
 import { fileToBase64, addDateFooter } from './utils/imageUtils';
 import { BACKGROUND_OPTIONS, STYLE_VARIATIONS, RESOLUTIONS, ASPECT_RATIOS } from './constants';
@@ -20,8 +20,15 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [error, setError] = useState<any>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
-  const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const todayStr = useMemo(() => new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), []);
+
+  // Helpful for the user to verify if Vercel actually updated the key
+  const keySuffix = useMemo(() => {
+    const key = process.env.API_KEY || '';
+    return key.length > 4 ? `...${key.slice(-4)}` : 'MISSING';
+  }, []);
 
   const handleSelectProKey = async () => {
     // @ts-ignore
@@ -63,13 +70,13 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      setLoadingStep('Optimizing image tokens...');
+      setLoadingStep('Processing image...');
       const imageData = await fileToBase64(sourceFile);
       
       const selectedBg = BACKGROUND_OPTIONS.find(bg => bg.id === selectedBackgroundId);
       const finalPrompt = `${selectedBg?.prompt || ''}. ${userPrompt}`;
       
-      setLoadingStep(`Contacting Gemini ${modelTier === 'gemini-3-pro-image-preview' ? 'Pro' : 'Flash'}...`);
+      setLoadingStep(`Requesting pixels from ${modelTier.split('-')[1]}...`);
       const style = STYLE_VARIATIONS[generatedImages.length % STYLE_VARIATIONS.length];
       
       const base64Image = await generateGatheringImageVariation(
@@ -79,20 +86,21 @@ const App: React.FC = () => {
         { model: modelTier, resolution, aspectRatio }
       );
       
-      setLoadingStep(`Finalizing memory...`);
+      setLoadingStep(`Applying final touches...`);
       const stamped = await addDateFooter(base64Image, todayStr);
       setGeneratedImages(prev => [`data:image/jpeg;base64,${stamped}`, ...prev]);
 
     } catch (err: any) {
       console.error("API Error Trace:", err);
-      const errStr = JSON.stringify(err);
+      const errStr = typeof err === 'string' ? err : (err.message || JSON.stringify(err));
       
       let msg = err.message || "An unexpected error occurred.";
       let isQuota = false;
 
-      if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('limit":0')) {
+      // Improved detection of quota issues
+      if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('limit":0') || errStr.includes('Quota')) {
         isQuota = true;
-        msg = "QUOTA EXHAUSTED: Your 'Default Gemini Project' has reached its limit. To fix this, create a NEW project in AI Studio and generate a fresh API key.";
+        msg = "The API returned a Quota Error. This means image generation is currently disabled or limited for this API project.";
       }
 
       setError({ message: msg, isQuota, raw: errStr });
@@ -103,7 +111,7 @@ const App: React.FC = () => {
   }, [sourceFile, selectedBackgroundId, userPrompt, modelTier, resolution, aspectRatio, todayStr, generatedImages.length]);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-200 flex flex-col antialiased">
+    <div className="min-h-screen bg-[#050505] text-gray-200 flex flex-col antialiased font-sans">
       {showProSelector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl p-6">
           <div className="max-w-md w-full bg-[#0a0a0a] border border-gray-800 rounded-[2.5rem] p-10 text-center space-y-8 shadow-2xl border-t-yellow-500/30">
@@ -111,9 +119,9 @@ const App: React.FC = () => {
               <SparkleIcon className="w-10 h-10 text-yellow-500" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-white">Upgrade Quota</h2>
+              <h2 className="text-3xl font-black text-white">Advanced Quota</h2>
               <p className="text-gray-400 text-sm leading-relaxed">
-                The "Default Gemini Project" is heavily restricted. By selecting your own paid API key, you get higher limits and professional-grade generation.
+                Image generation is restricted on standard free projects. To proceed, you need to select an API key from a project with billing enabled.
               </p>
             </div>
             <div className="space-y-4 pt-4">
@@ -127,12 +135,9 @@ const App: React.FC = () => {
                 onClick={() => { setShowProSelector(false); setModelTier('gemini-2.5-flash-image'); }} 
                 className="w-full py-3 text-gray-500 hover:text-white font-bold transition-all text-xs tracking-widest"
               >
-                STAY ON FREE TIER
+                STAY ON BASIC TIER
               </button>
             </div>
-            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
-              Requires a project with Billing Enabled
-            </p>
           </div>
         </div>
       )}
@@ -145,19 +150,24 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-2xl font-black text-white tracking-tighter">GATHERER<span className="text-yellow-500">.AI</span></h1>
           </div>
-          <div className="flex bg-gray-900/80 rounded-2xl p-1 border border-gray-800">
-            <button 
-              onClick={() => changeModel('gemini-2.5-flash-image')} 
-              className={`px-5 py-2 text-[10px] font-black rounded-xl transition-all tracking-widest ${modelTier === 'gemini-2.5-flash-image' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/10' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              FLASH
-            </button>
-            <button 
-              onClick={() => changeModel('gemini-3-pro-image-preview')} 
-              className={`px-5 py-2 text-[10px] font-black rounded-xl transition-all tracking-widest ${modelTier === 'gemini-3-pro-image-preview' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/10' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              PRO
-            </button>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:block text-[9px] font-black text-gray-600 uppercase tracking-widest">
+              API Key: <span className="text-gray-400">{keySuffix}</span>
+            </div>
+            <div className="flex bg-gray-900/80 rounded-2xl p-1 border border-gray-800">
+              <button 
+                onClick={() => changeModel('gemini-2.5-flash-image')} 
+                className={`px-5 py-2 text-[10px] font-black rounded-xl transition-all tracking-widest ${modelTier === 'gemini-2.5-flash-image' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/10' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                FLASH
+              </button>
+              <button 
+                onClick={() => changeModel('gemini-3-pro-image-preview')} 
+                className={`px-5 py-2 text-[10px] font-black rounded-xl transition-all tracking-widest ${modelTier === 'gemini-3-pro-image-preview' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/10' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                PRO
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -217,24 +227,32 @@ const App: React.FC = () => {
             {error && (
               <div className="bg-red-500/5 border border-red-500/20 p-8 rounded-[2rem] mb-10 animate-in slide-in-from-top-10 duration-500">
                 <div className="flex items-start gap-5">
-                  <div className="bg-red-500/10 p-3 rounded-2xl">🚨</div>
-                  <div className="space-y-4">
-                    <h3 className="text-red-500 font-black uppercase text-xs tracking-[0.2em]">Quota Exception Detected</h3>
+                  <div className="bg-red-500/10 p-3 rounded-2xl shrink-0">🚨</div>
+                  <div className="space-y-4 w-full">
+                    <h3 className="text-red-500 font-black uppercase text-xs tracking-[0.2em]">API Restriction Detected</h3>
                     <p className="text-red-200/60 text-sm leading-relaxed font-medium">{error.message}</p>
                     
                     {error.isQuota && (
                       <div className="bg-red-500/5 border border-red-500/10 p-6 rounded-2xl space-y-5">
-                        <p className="text-[11px] text-red-200/40 font-bold uppercase tracking-widest">Diagnostic Report:</p>
+                        <p className="text-[11px] text-red-200/40 font-bold uppercase tracking-widest">How to resolve:</p>
                         <ul className="text-[11px] text-red-200/80 space-y-3 list-none font-medium">
-                          <li className="flex gap-2"><span>1.</span> <span>Go to <strong>ai.google.dev</strong></span></li>
-                          <li className="flex gap-2"><span>2.</span> <span>Click Project Dropdown &rarr; <strong>New Project</strong></span></li>
-                          <li className="flex gap-2"><span>3.</span> <span>Get a <strong>New API Key</strong> for that project</span></li>
-                          <li className="flex gap-2"><span>4.</span> <span>Update your <strong>Vercel Env Variables</strong></span></li>
+                          <li className="flex gap-2"><span>1.</span> <span>Confirm your active key ends in <strong className="text-white">{keySuffix}</strong>. If not, Vercel hasn't updated yet.</span></li>
+                          <li className="flex gap-2"><span>2.</span> <span>Ensure you created a <strong className="text-white">New Project</strong> in AI Studio, not just a new key in the old project.</span></li>
+                          <li className="flex gap-2"><span>3.</span> <span>Wait 5-10 minutes. Sometimes "New Projects" take a few minutes to activate image quotas.</span></li>
                         </ul>
                       </div>
                     )}
                     
-                    <button onClick={() => setError(null)} className="px-6 py-2 bg-gray-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-colors">Dismiss</button>
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => setError(null)} className="px-6 py-2 bg-gray-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-colors">Dismiss</button>
+                      <button onClick={() => setShowDebug(!showDebug)} className="text-[9px] text-gray-600 font-bold uppercase underline">Show technical log</button>
+                    </div>
+
+                    {showDebug && (
+                      <pre className="mt-4 p-4 bg-black border border-gray-800 rounded-xl text-[10px] overflow-auto max-h-40 text-gray-500 font-mono">
+                        {error.raw}
+                      </pre>
+                    )}
                   </div>
                 </div>
               </div>
@@ -257,7 +275,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="text-center space-y-2">
                   <p className="text-yellow-500 font-black text-xs uppercase tracking-[0.4em]">{loadingStep}</p>
-                  <p className="text-gray-700 text-[9px] font-black uppercase tracking-widest">Processing via {modelTier.includes('pro') ? 'Gemini Pro' : 'Gemini Flash'}</p>
+                  <p className="text-gray-700 text-[9px] font-black uppercase tracking-widest">Active Key: {keySuffix}</p>
                 </div>
               </div>
             )}
@@ -287,7 +305,7 @@ const App: React.FC = () => {
       <footer className="p-10 border-t border-gray-900 bg-black/80">
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-[10px] text-gray-700 font-black uppercase tracking-[0.3em]">
-            {todayStr} • Gatherer Engine v0.5
+            {todayStr} • Gatherer Engine v0.6
           </div>
           <div className="flex gap-8 text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">
             <span className="hover:text-gray-400 cursor-pointer transition-colors">Documentation</span>
