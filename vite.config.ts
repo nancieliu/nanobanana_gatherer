@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // This tells Vite to leave 'process.env.API_KEY' as a literal code reference
-    // so the environment (AI Studio or Vercel) can inject it at runtime.
+    // We use a dynamic reference so that Vercel or AI Studio can provide the key at runtime
+    // rather than baking in a potentially empty build-time variable.
     'process.env.API_KEY': 'process.env.API_KEY',
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
